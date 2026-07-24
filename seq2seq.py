@@ -57,14 +57,14 @@ if os.path.exists("en_tokenizer.json") and os.path.exists("fr_tokenizer.json"):
     en_tokenizer = tokenizers.Tokenizer.from_file("en_tokenizer.json")
     fr_tokenizer = tokenizers.Tokenizer.from_file("fr_tokenizer.json")
 else:
-    #en_tokenizer = tokenizers.Tokenizer(tokenizers.models.BPE())
-    #fr_tokenizer = tokenizers.Tokenizer(tokenizers.models.BPE())
-    en_tokenizer = tokenizers.Tokenizer(tokenizers.models.WordLevel())
-    fr_tokenizer = tokenizers.Tokenizer(tokenizers.models.WordLevel())
+    en_tokenizer = tokenizers.Tokenizer(tokenizers.models.BPE())
+    fr_tokenizer = tokenizers.Tokenizer(tokenizers.models.BPE())
+    #en_tokenizer = tokenizers.Tokenizer(tokenizers.models.WordLevel())
+   # fr_tokenizer = tokenizers.Tokenizer(tokenizers.models.WordLevel())
 
     # Configure pre-tokenizer to split on whitespace and punctuation, add space at beginning of the sentence
-    en_tokenizer.pre_tokenizer = tokenizers.pre_tokenizers.ByteLevel(add_prefix_space=True,use_regex=False)
-    fr_tokenizer.pre_tokenizer = tokenizers.pre_tokenizers.ByteLevel(add_prefix_space=True,use_regex=False)
+    en_tokenizer.pre_tokenizer = tokenizers.pre_tokenizers.ByteLevel(add_prefix_space=True)
+    fr_tokenizer.pre_tokenizer = tokenizers.pre_tokenizers.ByteLevel(add_prefix_space=True)
 
     # Configure decoder: So that word boundary symbol "Ġ" will be removed
     en_tokenizer.decoder = tokenizers.decoders.ByteLevel()
@@ -72,9 +72,9 @@ else:
 
     # Train BPE for English and French using the same trainer
     VOCAB_SIZE = 8000
-    trainer = tokenizers.trainers.WordLevelTrainer(
+    trainer = tokenizers.trainers.BpeTrainer(
         vocab_size=VOCAB_SIZE,
-        special_tokens=["[UNK] ","[start]", "[end]", "[pad]"],
+        special_tokens=["[start]", "[end]", "[pad]"],
         show_progress=True
     )
     en_tokenizer.train_from_iterator([x[0] for x in text_pairs], trainer=trainer)
@@ -261,8 +261,7 @@ if os.path.exists("seq2seq.pth"):
 else:
     optimizer = optim.Adam(model.parameters(), lr=0.001)
     loss_fn = nn.CrossEntropyLoss(ignore_index=fr_tokenizer.token_to_id("[pad]"))
-    N_EPOCHS = 500
-
+    N_EPOCHS = 200
     for epoch in range(N_EPOCHS):
         model.train()
         epoch_loss = 0
@@ -279,7 +278,7 @@ else:
             optimizer.step()
             epoch_loss += loss.item()
         print(f"Epoch {epoch + 1}/{N_EPOCHS}; Avg loss {epoch_loss / len(dataloader)}; Latest loss {loss.item()}")
-        torch.save(model.state_dict(), f"seq2seq-epoch-{epoch + 1}.pth")
+        #torch.save(model.state_dict(), f"seq2seq-epoch-{epoch + 1}.pth")
         # Test
         if (epoch + 1) % 5 != 0:
             continue
@@ -324,7 +323,7 @@ with torch.no_grad():
 print("=======================")
 with torch.no_grad():
     start_token = torch.tensor([fr_tokenizer.token_to_id("[start]")]).to(device)
-    en_ids = torch.tensor(en_tokenizer.encode('device 1 authname 2000').ids).unsqueeze(0).to(device)
+    en_ids = torch.tensor(en_tokenizer.encode('device 1 authname 1000').ids).unsqueeze(0).to(device)
     _output, hidden, cell = model.encoder(en_ids)
     pred_ids = [start_token]
     for _ in range(MAX_LEN):
