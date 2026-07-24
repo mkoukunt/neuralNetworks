@@ -29,19 +29,27 @@ if not os.path.exists("fra-eng.zip"):
 def normalize(line):
     """Normalize a line of text and split into two at the tab character"""
     line = unicodedata.normalize("NFKC", line.strip().lower())
+    print(line)
     eng, fra = line.split("\t")
     return eng.lower().strip(), fra.lower().strip()
 
 
 text_pairs = []
-with zipfile.ZipFile("fra-eng.zip", "r") as zip_ref:
-    for line in zip_ref.read("fra.txt").decode("utf-8").splitlines():
-        eng, fra = normalize(line)
-        text_pairs.append((eng, fra))
-
+#with zipfile.ZipFile("fra-eng.zip", "r") as zip_ref:
+    #for line in zip_ref.read("fra.txt").decode("utf-8").splitlines():
+        #eng, fra = normalize(line)
+        #text_pairs.append((eng, fra))
 #
 # Tokenization with BPE
 #
+
+with open("data/ndp-cfg.txt", "r") as f:
+    for line in f.read().splitlines():
+        eng, fra = normalize(line)
+        text_pairs.append((eng, fra))
+
+
+
 
 if os.path.exists("en_tokenizer.json") and os.path.exists("fr_tokenizer.json"):
     en_tokenizer = tokenizers.Tokenizer.from_file("en_tokenizer.json")
@@ -249,7 +257,7 @@ if os.path.exists("seq2seq.pth"):
 else:
     optimizer = optim.Adam(model.parameters(), lr=0.001)
     loss_fn = nn.CrossEntropyLoss(ignore_index=fr_tokenizer.token_to_id("[pad]"))
-    N_EPOCHS = 30
+    N_EPOCHS = 200
 
     for epoch in range(N_EPOCHS):
         model.train()
@@ -287,7 +295,7 @@ else:
 
 # Test for a few samples
 model.eval()
-N_SAMPLES = 5
+N_SAMPLES = 10
 MAX_LEN = 60
 with torch.no_grad():
     start_token = torch.tensor([fr_tokenizer.token_to_id("[start]")]).to(device)
