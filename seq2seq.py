@@ -30,7 +30,7 @@ def normalize(line):
     """Normalize a line of text and split into two at the tab character"""
     line = unicodedata.normalize("NFKC", line.strip().lower())
     print(line)
-    eng, fra = line.split("\t")
+    eng, fra = line.split(",")
     return eng.lower().strip(), fra.lower().strip()
 
 
@@ -45,6 +45,8 @@ text_pairs = []
 
 with open("data/ndp-cfg.txt", "r") as f:
     for line in f.read().splitlines():
+
+        text_pairs.append(normalize(line))
         eng, fra = normalize(line)
         text_pairs.append((eng, fra))
 
@@ -55,12 +57,14 @@ if os.path.exists("en_tokenizer.json") and os.path.exists("fr_tokenizer.json"):
     en_tokenizer = tokenizers.Tokenizer.from_file("en_tokenizer.json")
     fr_tokenizer = tokenizers.Tokenizer.from_file("fr_tokenizer.json")
 else:
-    en_tokenizer = tokenizers.Tokenizer(tokenizers.models.BPE())
-    fr_tokenizer = tokenizers.Tokenizer(tokenizers.models.BPE())
+    #en_tokenizer = tokenizers.Tokenizer(tokenizers.models.BPE())
+    #fr_tokenizer = tokenizers.Tokenizer(tokenizers.models.BPE())
+    en_tokenizer = tokenizers.Tokenizer(tokenizers.models.WordLevel())
+    fr_tokenizer = tokenizers.Tokenizer(tokenizers.models.WordLevel())
 
     # Configure pre-tokenizer to split on whitespace and punctuation, add space at beginning of the sentence
-    en_tokenizer.pre_tokenizer = tokenizers.pre_tokenizers.ByteLevel(add_prefix_space=True)
-    fr_tokenizer.pre_tokenizer = tokenizers.pre_tokenizers.ByteLevel(add_prefix_space=True)
+    en_tokenizer.pre_tokenizer = tokenizers.pre_tokenizers.ByteLevel(add_prefix_space=True,use_regex=False)
+    fr_tokenizer.pre_tokenizer = tokenizers.pre_tokenizers.ByteLevel(add_prefix_space=True,use_regex=False)
 
     # Configure decoder: So that word boundary symbol "Ġ" will be removed
     en_tokenizer.decoder = tokenizers.decoders.ByteLevel()
@@ -68,9 +72,9 @@ else:
 
     # Train BPE for English and French using the same trainer
     VOCAB_SIZE = 8000
-    trainer = tokenizers.trainers.BpeTrainer(
+    trainer = tokenizers.trainers.WordLevelTrainer(
         vocab_size=VOCAB_SIZE,
-        special_tokens=["[start]", "[end]", "[pad]"],
+        special_tokens=["[UNK] ","[start]", "[end]", "[pad]"],
         show_progress=True
     )
     en_tokenizer.train_from_iterator([x[0] for x in text_pairs], trainer=trainer)
@@ -233,7 +237,7 @@ enc_vocab = len(en_tokenizer.get_vocab())
 dec_vocab = len(fr_tokenizer.get_vocab())
 emb_dim = 256
 hidden_dim = 256
-num_layers = 2
+num_layers = 8
 dropout = 0.1
 
 # Create model
@@ -257,7 +261,7 @@ if os.path.exists("seq2seq.pth"):
 else:
     optimizer = optim.Adam(model.parameters(), lr=0.001)
     loss_fn = nn.CrossEntropyLoss(ignore_index=fr_tokenizer.token_to_id("[pad]"))
-    N_EPOCHS = 200
+    N_EPOCHS = 500
 
     for epoch in range(N_EPOCHS):
         model.train()
@@ -317,3 +321,23 @@ with torch.no_grad():
         print(f"French: {true_fr}")
         print(f"Predicted: {pred_fr}")
         print()
+print("=======================")
+with torch.no_grad():
+    start_token = torch.tensor([fr_tokenizer.token_to_id("[start]")]).to(device)
+    en_ids = torch.tensor(en_tokenizer.encode('device 1 authname 2000').ids).unsqueeze(0).to(device)
+    _output, hidden, cell = model.encoder(en_ids)
+    pred_ids = [start_token]
+    for _ in range(MAX_LEN):
+        decoder_input = torch.tensor(pred_ids).unsqueeze(0).to(device)
+        output, hidden, cell = model.decoder(decoder_input, hidden, cell)
+        output = output[:, -1, :].argmax(dim=1)
+        pred_ids.append(output.item())
+        # early stop if the predicted token is the end token
+        if pred_ids[-1] == fr_tokenizer.token_to_id("[end]"):
+            break
+    # Decode the predicted IDs
+    pred_fr = fr_tokenizer.decode(pred_ids)
+    print(f"English: {en}")
+    print(f"French: {true_fr}")
+    print(f"Predicted:", pred_fr)
+    print()
