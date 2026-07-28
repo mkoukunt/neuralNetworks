@@ -1,3 +1,5 @@
+#https://debuggercafe.com/text-classification-using-transformer-encoder-in-pytorch/
+#https://towardsdatascience.com/text-classification-with-transformer-encoders-1dcaa50dabae/
 import torch
 import torch.nn as nn
 
@@ -94,6 +96,7 @@ class EncoderClassifier(nn.Module):
         x = x.max(dim=1)[0]
         out = self.linear(x)
         return out
+
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print('device:', device)
